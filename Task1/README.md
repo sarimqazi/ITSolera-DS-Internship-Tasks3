@@ -1,4 +1,4 @@
-# Task 5: Complete ML System with Interactive GUI
+# Task 1: Complete ML System with Interactive GUI
 
 ## Objective
 The objective of this task is to build a complete, end-to-end Machine Learning system using the Loan Prediction dataset and deploy it with an interactive Graphical User Interface (GUI) for generating real-time predictions.
