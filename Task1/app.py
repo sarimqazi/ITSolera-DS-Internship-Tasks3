@@ -40,7 +40,7 @@ st.markdown("""
 st.title("🏦 Intelligent Loan Prediction System")
 st.markdown("Use this ML-powered GUI to predict loan approvals automatically.")
 
-@st.cache_resource
+@st.cache_resource # # cache so it doesn't reload every time
 def load_assets():
     model_path = 'best_model.pkl'
     if not os.path.exists(model_path):
