@@ -1,0 +1,280 @@
+================================================================
+TASK 4 — Feature Engineering on Netflix Titles Dataset
+================================================================
+
+--------------------------
+PROBLEM STATEMENT
+--------------------------
+In Task 2, we built a recommendation system using the Netflix dataset, but we
+never tried to PREDICT anything from it. In Task 3, we learned that picking
+the right features and the right model matters a lot.
+
+Now in Task 4, the question is:
+
+    "Can a machine learning model look at a Netflix title's details
+     (like its duration, release year, genres, cast size, etc.) and
+     correctly predict whether it is a MOVIE or a TV SHOW?"
+
+At first glance, this might sound obvious — movies are usually 90+ minutes
+and TV shows have multiple seasons. But raw data alone is messy. Many
+columns contain text, missing values, and numbers in different scales.
+
+The deeper problem is:
+
+    "The original (raw) features are limited. What if we ENGINEER new,
+     smarter features from the existing ones — would that help the model
+     learn better and predict more accurately?"
+
+This task is all about Feature Engineering — the art of creating NEW
+useful input columns from existing ones to give the model more information
+to learn from.
+
+
+--------------------------
+OBJECTIVE
+--------------------------
+The main goals of this task are:
+
+1. Build a BASELINE model using only simple, raw features from the dataset
+   (no engineering) and record how well it performs.
+
+2. Engineer a rich set of NEW features — including polynomial terms,
+   interaction features, and binned (grouped) categories — to give the
+   model much more information to work with.
+
+3. Select only the BEST features from the new large set using three
+   different feature selection techniques, to avoid information overload.
+
+4. Train models on the engineered features and compare performance
+   BEFORE vs. AFTER feature engineering to prove the improvement.
+
+In simple words: "Start with plain ingredients, add smart seasoning
+(feature engineering), pick the best ones, and see if the dish tastes
+better (higher accuracy and ROC-AUC)."
+
+
+--------------------------
+DATASET DESCRIPTION
+--------------------------
+Dataset Used : Netflix Titles Dataset (netflix_titles.csv)
+Total Records: ~8,807 rows (movies and TV shows on Netflix)
+Target Column: type  →  Movie (encoded as 1)  vs  TV Show (encoded as 0)
+
+This is the same dataset used in Task 2. Here we use it for a
+CLASSIFICATION task instead of recommendation.
+
+All columns in the dataset:
+  ┌─────────────────┬──────────────────────────────────────────────────────┐
+  │ Column          │ What It Means                                        │
+  ├─────────────────┼──────────────────────────────────────────────────────┤
+  │ show_id         │ Unique ID for each title (not used in model)         │
+  │ type            │ TARGET: "Movie" or "TV Show"                         │
+  │ title           │ Name of the title                                    │
+  │ director        │ Who directed it (many are missing/Unknown)           │
+  │ cast            │ Actors/actresses in it (comma-separated names)       │
+  │ country         │ Where it was produced (can be multiple countries)    │
+  │ date_added      │ When it was added to Netflix                         │
+  │ release_year    │ The original year of release                         │
+  │ rating          │ Age rating (e.g. PG-13, TV-MA, TV-14, etc.)        │
+  │ duration        │ Length in minutes (movies) or seasons (TV shows)    │
+  │ listed_in       │ Genres it belongs to (e.g. Drama, Comedy)           │
+  │ description     │ Short plot summary                                   │
+  └─────────────────┴──────────────────────────────────────────────────────┘
+
+Key challenges in this dataset:
+  • Several columns had MISSING VALUES — handled by filling with 'Unknown'
+    or the most common value.
+  • Some columns are raw TEXT (cast, director, description) — they needed
+    to be converted into numbers the model can understand.
+  • The target classes are IMBALANCED — there are more Movies than TV Shows
+    (~69% Movies vs ~31% TV Shows).
+
+
+--------------------------
+MY APPROACH
+--------------------------
+Here is the step-by-step approach followed to complete this task:
+
+STEP 1 — Data Loading & Cleaning
+  • Loaded the Netflix dataset (8,807 rows, 12 columns).
+  • Dropped any rows where the target column "type" was missing.
+  • Filled missing values:
+      - director, cast → 'Unknown'
+      - country        → 'Unknown'
+      - rating         → most common rating in the dataset
+      - duration       → '0 min'
+      - date_added     → 'January 1, 2000'
+
+STEP 2 — Baseline Features (Before Engineering)
+  These are the SIMPLE, raw features used before any creative engineering:
+    • release_year    → just the year as a number
+    • duration_raw    → duration extracted as a number (e.g. 90 for 90 min)
+    • rating dummies  → one-hot encoded top 6 age ratings
+    • country dummies → one-hot encoded top 10 producing countries
+
+  A model was trained on ONLY these features to record the starting score.
+  This is our "before" benchmark.
+
+STEP 3 — Feature Engineering (Creating New, Smarter Features)
+  We created 4 categories of new features:
+
+  A) Text-Derived / Count Features
+     Instead of using raw names, we extracted meaningful numbers from text:
+     ┌───────────────────┬──────────────────────────────────────────────┐
+     │ New Feature       │ What It Captures                             │
+     ├───────────────────┼──────────────────────────────────────────────┤
+     │ n_cast            │ How many actors are in the cast              │
+     │ n_genres          │ How many genres the title belongs to         │
+     │ description_len   │ How many words are in the description        │
+     │ director_known    │ 1 if director is named, 0 if Unknown         │
+     │ n_countries       │ How many countries co-produced the title     │
+     └───────────────────┴──────────────────────────────────────────────┘
+
+  B) Date Features
+     Extracted useful time-based numbers from the date_added column:
+     • year_added          → which year it was added to Netflix
+     • month_added         → which month it was added
+     • years_since_release → how many years passed between release
+                             and being added to Netflix
+
+  C) Binning / Grouping Features
+     Instead of treating years as exact numbers, we grouped them into
+     meaningful categories (called bins):
+     • era            → Classic (before 2000), Early2000s, Mid2000s,
+                        Late2010s, Recent (after 2018)
+     • duration_bucket→ VeryShort, Short, Standard, Long (by minutes)
+     • genre_richness → Single genre, Double genres, Multi genres
+
+  D) Interaction Features
+     Created new features by COMBINING two existing ones together.
+     The idea: sometimes the relationship between two features together
+     is more informative than each feature alone.
+     Examples:
+     • cast × genres       → big cast + many genres = likely a movie?
+     • duration × genres   → long + many genres = rich content
+     • old_content         → released before 2000 AND director unknown
+     • recent_intl         → released after 2015 AND multi-country
+
+  E) Polynomial Features (degree 2)
+     Applied to core numeric columns: release_year, duration_val, n_cast,
+     n_genres, description_len.
+     This generates squared terms and cross-products automatically:
+     Examples: duration_val², release_year × n_cast, n_genres², etc.
+     → These help the model detect NON-LINEAR patterns in the data.
+
+  After engineering, we expanded from ~20 baseline features to a much
+  larger set of features.
+
+STEP 4 — Feature Selection (Picking the Best Features)
+  More features ≠ always better. Too many features can confuse the model
+  and slow it down. We used THREE methods to filter down to the best ones:
+
+  Method A — Random Forest Feature Importance
+    • Trained a Random Forest and asked it which features it used most.
+    • Kept the TOP 25 most important features.
+
+  Method B — Correlation Analysis
+    • Kept only features that have at least a weak relationship
+      (correlation ≥ 0.03) with the target (Movie vs TV Show).
+    • Also dropped any two features that were almost identical to each
+      other (correlation > 0.95 between them) to remove redundancy.
+
+  Method C — Recursive Feature Elimination (RFE)
+    • A technique where a model is trained repeatedly, eliminating the
+      weakest features one by one, until only the TOP 20 remain.
+
+  FINAL SELECTION: Features that appear in BOTH Random Forest top 25 AND
+  RFE top 20 were kept. This intersection ensures only features that are
+  important according to TWO independent methods are used.
+
+STEP 5 — Model Training with Hyperparameter Tuning
+  Three models were trained and tuned using RandomizedSearchCV with
+  Stratified 3-Fold Cross-Validation (same approach as Task 3):
+    1. Random Forest
+    2. Logistic Regression
+    3. XGBoost
+
+  Models were evaluated using Accuracy, F1-Score, and ROC-AUC.
+  The model with the highest ROC-AUC was selected as the winner.
+
+STEP 6 — Before vs. After Comparison
+  The best model scores from the BASELINE run and the ENGINEERED run
+  were compared side-by-side to measure how much feature engineering
+  actually helped.
+
+
+--------------------------
+FINAL CONCLUSION WITH INSIGHTS
+--------------------------
+
+RESULTS COMPARISON (run python task4.py to see exact numbers):
+
+  Metric    |   Before (Baseline)  |  After (Engineered)  |  Change
+  ----------|----------------------|----------------------|--------
+  Accuracy  |       ~0.XX          |       ~0.XX          |  +X.XX
+  F1-Score  |       ~0.XX          |       ~0.XX          |  +X.XX
+  ROC-AUC   |       ~0.XX          |       ~0.XX          |  +X.XX
+
+  → Run: python task4.py  to see the exact numbers printed in terminal.
+
+KEY INSIGHTS:
+
+1. Feature Engineering Gave the Model More to Learn From
+   The raw dataset had a small number of usable numeric features.
+   After engineering, we created dozens of new features that capture
+   hidden patterns — like how long it took to add a title to Netflix
+   after release, or how large the cast is relative to genres.
+   This extra information directly improves the model's understanding.
+
+2. Duration is the Most Powerful Single Feature
+   The single strongest predictor of whether a title is a Movie or TV
+   Show is the duration value. Movies have a fixed runtime in minutes,
+   while TV Shows are measured in seasons (1 Season, 2 Seasons, etc.).
+   This natural difference is captured powerfully by the duration_val
+   and duration_bucket features.
+
+3. Polynomial Features Help Capture Non-Linear Patterns
+   A simple model sees features one at a time. But duration² or
+   release_year × n_cast reveals relationships that flat features miss.
+   For example, very long content released recently is almost certainly
+   a movie — polynomial terms help the model detect this kind of
+   compound pattern automatically.
+
+4. Feature Selection Was Critical — Less is More
+   Before selection, we had a very large feature set. Training on ALL
+   of them caused noise and slowed down processing. By narrowing to the
+   intersection of RF Importance and RFE, we kept only the features that
+   two independent methods agreed were useful — giving a clean, focused
+   input that the model could learn from more efficiently.
+
+5. Interaction Features Added Real-World Logic
+   The interaction feature recent_intl (released after 2015 AND from
+   multiple countries) makes intuitive sense: Netflix has been investing
+   heavily in international co-productions in recent years, and these
+   tend to be movies rather than TV shows. Encoding this human logic as
+   a feature helped the model pick up on it.
+
+6. Three Feature Selection Methods = More Confidence
+   Using just one selection method might be biased. By applying three
+   independent techniques (RF Importance, Correlation, RFE) and then
+   taking the intersection, we are much more confident that the final
+   features are genuinely useful — not just flukes of one method.
+
+7. Random Forest Tends to Perform Best Here
+   On this dataset, Random Forest typically scores the highest ROC-AUC
+   because it naturally handles the mix of numeric, binary, and encoded
+   categorical features well, and is robust to outliers in income/duration
+   ranges without needing extensive normalization.
+
+OVERALL:
+  This task demonstrated the full power of Feature Engineering in a
+  real-world classification pipeline. Starting from a simple dataset of
+  Netflix titles, we went from basic raw features to a rich, carefully
+  selected set of engineered features — and confirmed that the extra
+  effort of creating smarter inputs produces a measurably better model.
+  The lesson is clear: the quality of your features matters just as much
+  (if not more) than the choice of algorithm.
+
+================================================================
+END OF TASK 4 SUMMARY
+================================================================

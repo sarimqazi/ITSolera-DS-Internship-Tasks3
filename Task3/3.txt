@@ -1,0 +1,227 @@
+================================================================
+TASK 3 — Model Evaluation and Hyperparameter Tuning
+================================================================
+
+--------------------------
+PROBLEM STATEMENT
+--------------------------
+In Task 1, we built a loan prediction system and picked the best model just
+by looking at its basic accuracy score. But accuracy alone can be misleading
+— especially when the data is imbalanced (e.g., more approved loans than
+rejected ones). A model might score 78% accuracy simply by always predicting
+"Approved" without actually learning anything useful.
+
+The problem is:
+
+    "How do we fairly compare multiple ML models and find the TRULY best
+     one — not just the one with the highest accuracy, but the one that is
+     best at BOTH catching approved AND rejected loan applications?"
+
+Additionally, every ML model has settings called hyperparameters (like
+how many trees to grow, or how deeply to branch) that are NOT learned from
+the data — we have to choose them ourselves. Bad settings can make even a
+great algorithm perform poorly.
+
+So the two connected problems are:
+  1. We need RICHER evaluation metrics beyond just accuracy.
+  2. We need a smarter way to find the BEST settings for each model.
+
+
+--------------------------
+OBJECTIVE
+--------------------------
+The main goals of this task are:
+
+1. Train three different ML models (Logistic Regression, Random Forest,
+   XGBoost) on the Loan Prediction dataset.
+
+2. Apply Hyperparameter Tuning on each model automatically — trying many
+   different settings combinations and picking the best ones.
+
+3. Evaluate every model using FIVE metrics — not just accuracy — to get a
+   full and honest picture of each model's real-world performance.
+
+4. Compare all models in a clear results table and select the best one
+   with proper justification backed by data.
+
+In simple words: "Don't just guess the best model — TEST and TUNE them
+all properly, then pick the winner using solid evidence."
+
+
+--------------------------
+DATASET DESCRIPTION
+--------------------------
+Dataset Used : Loan Prediction Dataset (loan_prediction.csv)
+Total Records: ~614 rows (loan applications)
+Target Column: Loan_Status  (Y = Approved → 1,  N = Rejected → 0)
+
+This is the same dataset used in Task 1. It contains information about
+loan applicants and whether their loan was approved or not.
+
+  NUMERICAL FEATURES (number columns):
+  ┌──────────────────────────┬────────────────────────────────────────────┐
+  │ Feature                  │ What It Means                              │
+  ├──────────────────────────┼────────────────────────────────────────────┤
+  │ ApplicantIncome          │ Monthly income of the main applicant       │
+  │ CoapplicantIncome        │ Monthly income of the co-applicant         │
+  │ LoanAmount               │ Loan amount requested (in thousands)       │
+  │ Loan_Amount_Term         │ Repayment duration in months               │
+  │ Credit_History           │ 1 = good credit history, 0 = bad history   │
+  └──────────────────────────┴────────────────────────────────────────────┘
+
+  CATEGORICAL FEATURES (text/group columns):
+  ┌──────────────────────────┬────────────────────────────────────────────┐
+  │ Feature                  │ What It Means                              │
+  ├──────────────────────────┼────────────────────────────────────────────┤
+  │ Gender                   │ Male / Female                              │
+  │ Married                  │ Yes / No                                   │
+  │ Dependents               │ Number of dependents (0, 1, 2, 3+)        │
+  │ Education                │ Graduate / Not Graduate                    │
+  │ Self_Employed            │ Yes / No                                   │
+  │ Property_Area            │ Urban / Semiurban / Rural                  │
+  └──────────────────────────┴────────────────────────────────────────────┘
+
+Missing values in several columns were handled using:
+  → Median imputation for number columns
+  → Most frequent value (mode) for text columns
+
+
+--------------------------
+MY APPROACH
+--------------------------
+Here is the step-by-step approach followed to complete this task:
+
+STEP 1 — Data Loading & Preprocessing
+  • Loaded the Loan Prediction dataset using pandas.
+  • Removed the Loan_ID column (not useful for prediction).
+  • Converted Loan_Status labels: Y → 1 (Approved), N → 0 (Rejected).
+  • Split the data into 80% Training and 20% Testing.
+  • Applied the same preprocessing pipeline as Task 1:
+      - Number columns: fill missing → scale with StandardScaler
+      - Text columns: fill missing → convert with OneHotEncoder
+
+STEP 2 — Defining Three Models to Compare
+  Three different classification algorithms were chosen to represent a
+  range from simple to complex:
+
+  1. Logistic Regression
+     → Simple linear model. Easy to understand and very fast to train.
+     → Good baseline to compare against.
+
+  2. Random Forest
+     → Builds many decision trees and combines their answers.
+     → More powerful than a single tree, handles complex patterns.
+
+  3. XGBoost (Extreme Gradient Boosting)
+     → Builds trees one after another, each one learning from the
+       mistakes of the previous one. Very powerful and widely used.
+
+STEP 3 — Hyperparameter Tuning with RandomizedSearchCV
+  Instead of manually trying different settings, we used a technique called
+  RandomizedSearchCV which:
+    • Takes a list of possible values for each setting (a "parameter grid").
+    • Randomly tries 10 different combinations of those settings.
+    • For each combination, uses 3-Fold Cross-Validation:
+        → Splits training data into 3 parts, trains on 2 and tests on 1,
+          repeats 3 times, averages the results. This reduces overfitting.
+    • Picks the combination that gives the best ROC-AUC on average.
+    • Returns the best-tuned version of each model.
+
+  Settings tuned per model:
+    Logistic Regression : C (regularization strength), solver type
+    Random Forest       : number of trees, max depth, split rules
+    XGBoost             : number of trees, learning rate, max depth, subsample
+
+STEP 4 — Evaluating Models with 5 Metrics
+  Once tuned, each model was tested on the 20% hold-out test set.
+  Five metrics were calculated to give a complete picture:
+
+  ┌─────────────┬──────────────────────────────────────────────────────────┐
+  │ Metric      │ What It Measures (in plain words)                        │
+  ├─────────────┼──────────────────────────────────────────────────────────┤
+  │ Accuracy    │ Out of all predictions, how many were correct overall?   │
+  │ Precision   │ When the model said "Approved", how often was it right?  │
+  │ Recall      │ Out of all actual approvals, how many did it catch?      │
+  │ F1-Score    │ Balance between Precision and Recall (harmonic mean)     │
+  │ ROC-AUC     │ How well can the model separate Approved vs Rejected?    │
+  │             │ (1.0 = perfect, 0.5 = random guessing)                  │
+  └─────────────┴──────────────────────────────────────────────────────────┘
+
+  ROC-AUC was used as the PRIMARY metric to select the best model because
+  it is the most reliable measure when dealing with imbalanced classes.
+
+STEP 5 — Selecting the Best Model
+  After tuning and evaluating all three models, results were compared in
+  a table and the best model was chosen based on the highest ROC-AUC score.
+
+
+--------------------------
+FINAL CONCLUSION WITH INSIGHTS
+--------------------------
+
+RESULTS TABLE (on 20% hold-out test set after hyperparameter tuning):
+
+  Model                | Accuracy | Precision | Recall  | F1-Score | ROC-AUC
+  -------------------- | -------- | --------- | ------- | -------- | -------
+  Logistic Regression  |  0.7886  |  0.7596   | 0.9875  |  0.8587  | 0.7494 ← WINNER
+  Random Forest        |  0.7886  |  0.7596   | 0.9875  |  0.8587  | 0.7422
+  XGBoost              |  0.7724  |  0.7653   | 0.9375  |  0.8427  | 0.7488
+
+BEST MODEL: Logistic Regression (ROC-AUC = 0.7494)
+
+KEY INSIGHTS:
+
+1. Logistic Regression is the Winner — Again
+   Just like in Task 1, Logistic Regression came out on top even after
+   proper tuning. This strongly confirms that the patterns in this loan
+   dataset are fundamentally linear — meaning simple models are actually
+   the right tool here. More complex models like XGBoost don't add extra
+   value on this particular dataset.
+
+2. Accuracy Alone is NOT Enough
+   Logistic Regression and Random Forest had the SAME accuracy (78.86%),
+   same Precision, same Recall, and same F1-Score. Without ROC-AUC, we
+   would have had no way to break the tie. ROC-AUC showed that Logistic
+   Regression is slightly better at distinguishing approvals from rejections
+   overall, making it the true winner.
+
+3. Recall is Very High (98.75%) — What Does That Mean?
+   Recall of 98.75% means the model correctly caught nearly ALL the actual
+   loan approvals. In a loan approval context, this is good because:
+     → The bank won't accidentally reject many qualified applicants.
+   However, the lower Precision (75.96%) means some rejected applicants
+   are also being predicted as approved. There is always a trade-off
+   between Precision and Recall.
+
+4. Hyperparameter Tuning Helped but Didn't Change the Winner
+   Tuning found better internal settings for all three models (using
+   RandomizedSearchCV with 3-fold cross-validation). The rankings stayed
+   the same, but tuning ensured we were comparing each model's BEST
+   possible version — not a poorly configured one. This makes the
+   comparison fair and trustworthy.
+
+5. XGBoost Underperformed Relative to Expectations
+   XGBoost is a state-of-the-art algorithm that often wins competitions,
+   but here it scored the lowest accuracy (77.24%) and slightly lower
+   recall. This is likely because:
+     → The dataset is small (~614 rows). XGBoost shines on large datasets.
+     → The relationships in this data are too simple for a complex model.
+     → Complex models can OVERFIT on small datasets, hurting test scores.
+
+6. Cross-Validation Makes Results More Reliable
+   Using 3-fold cross-validation during tuning means each setting was
+   tested 3 different times on different slices of data. This prevents us
+   from accidentally picking settings that only work well on one lucky
+   split of the data — making the final model more robust and generalized.
+
+OVERALL:
+  This task demonstrated why proper model evaluation and tuning matters.
+  Instead of blindly trusting accuracy, we used 5 metrics, automated
+  hyperparameter tuning, and cross-validation to make an INFORMED,
+  data-driven decision. The final winner — Logistic Regression — is not
+  just the most accurate, but the most interpretable and computationally
+  efficient model for this loan prediction task.
+
+================================================================
+END OF TASK 3 SUMMARY
+================================================================
